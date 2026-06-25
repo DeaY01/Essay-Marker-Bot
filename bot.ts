@@ -14,10 +14,13 @@ const dataDir = path.join(__dirname, 'data');
 if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir);
 
 const historyFile = path.join(dataDir, 'history.json');
+const feedbackFile = path.join(dataDir, 'feedback.json');
+
 let history: any[] = [];
-if (fs.existsSync(historyFile)) {
-  history = JSON.parse(fs.readFileSync(historyFile, 'utf-8'));
-}
+let feedbacks: any[] = [];
+
+if (fs.existsSync(historyFile)) history = JSON.parse(fs.readFileSync(historyFile, 'utf-8'));
+if (fs.existsSync(feedbackFile)) feedbacks = JSON.parse(fs.readFileSync(feedbackFile, 'utf-8'));
 
 const ADMIN_ID = 1693748981;
 
@@ -35,16 +38,10 @@ Use the official COEM rubric:
 Be strict and realistic.`;
 
 bot.start((ctx) => {
-  ctx.reply(
-    `👋 *Welcome to EssayMaker Bot!*\n\n` +
-    `1. Send your essay topic first\n` +
-    `2. Send clear photo(s) of your answer\n` +
-    `3. Type *done* when finished`,
-    { parse_mode: 'Markdown' }
-  );
+  ctx.reply(`👋 *Welcome to EssayMaker Bot!*\n\n1. Send topic\n2. Send photos\n3. Type *done*`, { parse_mode: 'Markdown' });
 });
 
-// Commands
+// Commands (High Priority)
 bot.command('history', (ctx) => {
   const myHistory = history.filter(h => h.userId === ctx.from.id);
   if (myHistory.length === 0) return ctx.reply("You have no previous markings yet.");
@@ -58,7 +55,16 @@ bot.command('history', (ctx) => {
 
 bot.command('stats', (ctx) => {
   if (ctx.from.id !== ADMIN_ID) return ctx.reply("❌ Admin only.");
-  ctx.reply(`📊 Total Essays: ${history.length}\nUnique Users: ${new Set(history.map(h => h.userId)).size}`);
+
+  const totalEssays = history.length;
+  const uniqueUsers = new Set(history.map(h => h.userId)).size;
+
+  let msg = `📊 *EssayMaker Statistics*\n\n`;
+  msg += `Total Essays Marked: *${totalEssays}*\n`;
+  msg += `Total Unique Users: *${uniqueUsers}*\n`;
+  msg += `Total Feedbacks Received: *${feedbacks.length}*`;
+
+  ctx.reply(msg, { parse_mode: 'Markdown' });
 });
 
 // Text Handler
@@ -71,6 +77,7 @@ bot.on('text', async (ctx) => {
 
   const state = userState.get(userId);
 
+  // Handle "done"
   if (lower === 'done') {
     if (!state || state.images.length === 0) {
       return ctx.reply("Please send at least one photo first.");
@@ -106,32 +113,40 @@ bot.on('text', async (ctx) => {
 
       fs.writeFileSync(historyFile, JSON.stringify(history, null, 2));
 
+      // Trigger feedback
+      userState.set(userId, { step: 'feedback', topic: '', images: [] });
       await ctx.reply("📝 Would you like to give feedback? Reply *yes* or *no*.");
 
     } catch (error) {
       console.error(error);
       await ctx.reply("❌ Failed to mark essay.");
     }
-
-    userState.delete(userId);
     return;
   }
 
   // Handle Feedback Flow
   if (state?.step === 'feedback') {
     if (lower === 'yes') {
-      await ctx.reply("⭐️ Rate the bot from 1 to 5:");
       userState.set(userId, { step: 'rating', topic: '', images: [] });
+      return ctx.reply("⭐️ Rate the bot from 1 to 5:");
     } else {
-      await ctx.reply("Thank you! Send a new topic to start again.");
+      await ctx.reply("Thank you! Send a new topic to continue.");
       userState.delete(userId);
+      return;
     }
-    return;
   }
 
   if (state?.step === 'rating') {
     const rating = parseInt(text);
     if (rating >= 1 && rating <= 5) {
+      feedbacks.push({
+        userId,
+        username: ctx.from.username || ctx.from.first_name,
+        rating,
+        date: new Date().toISOString()
+      });
+      fs.writeFileSync(feedbackFile, JSON.stringify(feedbacks, null, 2));
+
       await ctx.reply("Thank you for your feedback! 🙏");
     } else {
       await ctx.reply("Please reply with a number between 1 and 5.");
