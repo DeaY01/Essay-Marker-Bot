@@ -12,7 +12,7 @@
     "@ai-sdk/xai": "^1.0.0",
     "ai": "^4.0.0",
     "dotenv": "^16.4.0",
-    "telegraf": "^4.22.0"
+    "telegraf": "latest"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
