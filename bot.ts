@@ -21,10 +21,11 @@ if (fs.existsSync(historyFile)) {
 
 const ADMIN_ID = 1693748981;
 
-// Daily limit
+// Daily usage tracking
 const dailyUsage = new Map<number, { date: string; count: number }>();
 
-const userState = new Map<number, { topic?: string; images: string[] }>();
+const userTopics = new Map<number, string>();
+const userImages = new Map<number, string[]>();
 
 const SYSTEM_PROMPT = `You are a **very strict** WAEC/NECO examiner.
 
@@ -41,13 +42,27 @@ bot.start((ctx) => {
   ctx.reply(`👋 *Welcome to EssayMaker Bot!*\n\nYou can mark up to **3 essays per day**.\n\nSend your essay topic first.`, { parse_mode: 'Markdown' });
 });
 
-// ================== COMMANDS ==================
+// Check daily limit
+function canMarkToday(userId: number): { allowed: boolean; remaining: number } {
+  const today = new Date().toISOString().split('T')[0];
+  const usage = dailyUsage.get(userId);
+
+  if (!usage || usage.date !== today) {
+    dailyUsage.set(userId, { date: today, count: 0 });
+    return { allowed: true, remaining: 3 };
+  }
+
+  const remaining = 3 - usage.count;
+  return { allowed: remaining > 0, remaining };
+}
+
+// Commands
 bot.command('history', (ctx) => {
   const myHistory = history.filter(h => h.userId === ctx.from.id);
   if (myHistory.length === 0) return ctx.reply("You have no previous markings yet.");
 
   let msg = "📜 *Your Marking History:*\n\n";
-  myHistory.slice(-10).reverse().forEach((h, i) => {
+  myHistory.slice(-5).reverse().forEach((h, i) => {
     msg += `${i+1}. ${new Date(h.date).toLocaleDateString()} — ${h.topic.substring(0, 60)}...\n`;
   });
   ctx.reply(msg, { parse_mode: 'Markdown' });
@@ -58,26 +73,22 @@ bot.command('stats', (ctx) => {
   ctx.reply(`📊 Total Essays Marked: ${history.length}\nUnique Users: ${new Set(history.map(h => h.userId)).size}`);
 });
 
-// ================== TEXT HANDLER ==================
+// Text Handler
 bot.on('text', async (ctx) => {
   const userId = ctx.from.id;
   const text = ctx.message.text.trim();
   const lower = text.toLowerCase();
 
-  // Skip commands
   if (lower.startsWith('/')) return;
 
-  const state = userState.get(userId);
-
-  // Handle "done"
   if (lower === 'done') {
-    const topic = userTopics.get(userId) || "No topic";   // Note: I used userTopics here
+    const topic = userTopics.get(userId) || "No topic";
     const images = userImages.get(userId) || [];
 
     if (images.length === 0) return ctx.reply("Please send at least one photo first.");
 
     const limit = canMarkToday(userId);
-    if (!limit.allowed) return ctx.reply("⛔️ Daily limit reached. Come back tomorrow.");
+    if (!limit.allowed) return ctx.reply(`⛔️ You have reached your daily limit of 3 essays.\n\nCome back tomorrow!`);
 
     await ctx.reply("⏳ Marking your essay...");
 
@@ -98,7 +109,12 @@ bot.on('text', async (ctx) => {
 
       await ctx.reply(result || "✅ Marking completed.", { parse_mode: 'Markdown' });
 
-      // Save history
+      // Update daily usage
+      const today = new Date().toISOString().split('T')[0];
+      const usage = dailyUsage.get(userId) || { date: today, count: 0 };
+      usage.count += 1;
+      dailyUsage.set(userId, usage);
+
       history.push({
         userId,
         username: ctx.from.username || ctx.from.first_name,
@@ -110,12 +126,6 @@ bot.on('text', async (ctx) => {
 
       fs.writeFileSync(historyFile, JSON.stringify(history, null, 2));
 
-      // Update daily usage
-      const today = new Date().toISOString().split('T')[0];
-      const usage = dailyUsage.get(userId) || { date: today, count: 0 };
-      usage.count += 1;
-      dailyUsage.set(userId, usage);
-
       await ctx.reply("📝 Would you like to give feedback? Reply *yes* or *no*.");
 
     } catch (error) {
@@ -125,30 +135,6 @@ bot.on('text', async (ctx) => {
 
     userTopics.delete(userId);
     userImages.delete(userId);
-    return;
-  }
-
-  // Handle Feedback
-  if (state && state.step === 'feedback') {
-    if (lower === 'yes') {
-      await ctx.reply("⭐️ Rate the bot from 1 to 5:");
-      userState.set(userId, { step: 'rating', topic: '', images: [] });
-    } else {
-      await ctx.reply("Thank you! Send a new topic to start again.");
-      userState.delete(userId);
-    }
-    return;
-  }
-
-  if (state && state.step === 'rating') {
-    const rating = parseInt(text);
-    if (rating >= 1 && rating <= 5) {
-      await ctx.reply("Thank you for your feedback! 🙏");
-    } else {
-      await ctx.reply("Please reply with a number between 1 and 5.");
-      return;
-    }
-    userState.delete(userId);
     return;
   }
 
@@ -172,22 +158,8 @@ bot.on('photo', async (ctx) => {
   await ctx.reply(`📸 Page ${userImages.get(userId)!.length} received.\nSend more or type *done*.`);
 });
 
-// Daily Limit Function
-function canMarkToday(userId: number): { allowed: boolean; remaining: number } {
-  const today = new Date().toISOString().split('T')[0];
-  const usage = dailyUsage.get(userId);
-
-  if (!usage || usage.date !== today) {
-    dailyUsage.set(userId, { date: today, count: 0 });
-    return { allowed: true, remaining: 3 };
-  }
-
-  const remaining = 3 - usage.count;
-  return { allowed: remaining > 0, remaining };
-}
-
 bot.launch()
-  .then(() => console.log('✅ Bot is running...'))
+  .then(() => console.log('✅ Bot is running with 3 essays/day limit'))
   .catch(console.error);
 
 console.log('Bot started.');
