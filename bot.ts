@@ -35,7 +35,7 @@ Use the official COEM rubric:
 - Mechanical Accuracy (10 marks)
 **Total: 50 marks**
 
-Be strict and consistent. Similar quality essays should receive similar scores. If the essay has little or no relevance to the given topic, give very low Content score (0-3/10).`;
+Be strict and consistent. Similar quality essays should receive similar scores. If the essay has little or no relevance to the given topic, give very low score (0-3/50).`;
 
 bot.start((ctx) => {
   ctx.reply(
