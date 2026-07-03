@@ -21,7 +21,6 @@ if (fs.existsSync(historyFile)) {
 
 const ADMIN_ID = 1693748981;
 
-// Daily limit
 const dailyUsage = new Map<number, { date: string; count: number }>();
 
 const userTopics = new Map<number, string>();
@@ -36,12 +35,11 @@ Use the official COEM rubric:
 - Mechanical Accuracy (10 marks)
 **Total: 50 marks**
 
-Be consistent. Similar quality essays should receive similar scores.`;
+Be strict and consistent. Similar quality essays should receive similar scores. If the essay has little or no relevance to the given topic, give very low Content score (0-3/10).`;
 
 bot.start((ctx) => {
   ctx.reply(
     `👋 *Welcome to EssayMaker Bot!*\n\n` +
-    `You can mark up to **3 essays per day**.\n\n` +
     `1. Send your essay topic first\n` +
     `2. Send clear photo(s)\n` +
     `3. Type *done* when finished`,
@@ -66,16 +64,14 @@ bot.command('stats', (ctx) => {
   ctx.reply(`📊 Total Essays Marked: ${history.length}\nUnique Users: ${new Set(history.map(h => h.userId)).size}`);
 });
 
-// Main Text Handler
+// Text Handler
 bot.on('text', async (ctx) => {
   const userId = ctx.from.id;
   const text = ctx.message.text.trim();
   const lower = text.toLowerCase();
 
-  // Skip commands
   if (lower.startsWith('/')) return;
 
-  // Handle "done"
   if (lower === 'done') {
     const topic = userTopics.get(userId) || "No topic";
     const images = userImages.get(userId) || [];
@@ -104,7 +100,6 @@ bot.on('text', async (ctx) => {
 
       await ctx.reply(result || "✅ Marking completed.", { parse_mode: 'Markdown' });
 
-      // Update daily usage
       const today = new Date().toISOString().split('T')[0];
       const usage = dailyUsage.get(userId) || { date: today, count: 0 };
       usage.count += 1;
