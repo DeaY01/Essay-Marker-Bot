@@ -39,52 +39,45 @@ Use the official COEM rubric:
 Be strict and realistic.`;
 
 bot.start((ctx) => {
-  ctx.reply(
-    `👋 *Welcome to EssayMaker Bot!*\n\n` +
-    `You can mark up to **3 essays per day**.\n\n` +
-    `1. Send your essay topic first\n` +
-    `2. Send clear photo(s)\n` +
-    `3. Type *done* when finished`,
-    { parse_mode: 'Markdown' }
-  );
+  ctx.reply(`👋 *Welcome to EssayMaker Bot!*\n\nYou can mark up to **3 essays per day**.\n\n1. Send topic\n2. Send photos\n3. Type *done*`, { parse_mode: 'Markdown' });
 });
 
-// Check daily limit
-function canMarkToday(userId: number): { allowed: boolean; remaining: number } {
-  const today = new Date().toISOString().split('T')[0];
-  const usage = dailyUsage.get(userId);
+// ================== COMMANDS (Must come first) ==================
+bot.command('history', (ctx) => {
+  const myHistory = history.filter(h => h.userId === ctx.from.id);
+  if (myHistory.length === 0) return ctx.reply("You have no previous markings yet.");
 
-  if (!usage || usage.date !== today) {
-    dailyUsage.set(userId, { date: today, count: 0 });
-    return { allowed: true, remaining: 3 };
-  }
+  let msg = "📜 *Your Marking History:*\n\n";
+  myHistory.slice(-5).reverse().forEach((h, i) => {
+    msg += `${i+1}. ${new Date(h.date).toLocaleDateString()} — ${h.topic.substring(0, 60)}...\n`;
+  });
+  ctx.reply(msg, { parse_mode: 'Markdown' });
+});
 
-  const remaining = 3 - usage.count;
-  return { allowed: remaining > 0, remaining };
-}
+bot.command('stats', (ctx) => {
+  if (ctx.from.id !== ADMIN_ID) return ctx.reply("❌ Admin only.");
+  ctx.reply(`📊 Total Essays Marked: ${history.length}\nUnique Users: ${new Set(history.map(h => h.userId)).size}`);
+});
 
-// Topic & General Text Handler
+// ================== TEXT HANDLER ==================
 bot.on('text', async (ctx) => {
   const userId = ctx.from.id;
   const text = ctx.message.text.trim();
   const lower = text.toLowerCase();
 
-  if (lower.startsWith('/')) return;
-
+  // Handle "done"
   if (lower === 'done') {
     const topic = userTopics.get(userId) || "No topic";
     const images = userImages.get(userId) || [];
 
-    if (images.length === 0) {
-      return ctx.reply("Please send at least one photo first.");
-    }
+    if (images.length === 0) return ctx.reply("Please send at least one photo first.");
 
-    const limit = canMarkToday(userId);
+    const limit = canMarkToday(userId);   // we'll define this function below
     if (!limit.allowed) {
       return ctx.reply(`⛔️ You have reached your daily limit of 3 essays.\n\nCome back tomorrow!`);
     }
 
-    await ctx.reply("⏳ Marking your essay... This may take 15-30 seconds.");
+    await ctx.reply("⏳ Marking your essay...");
 
     try {
       const imageContents = images.map(url => ({ type: 'image' as const, image: url }));
@@ -109,7 +102,6 @@ bot.on('text', async (ctx) => {
       usage.count += 1;
       dailyUsage.set(userId, usage);
 
-      // Save history
       history.push({
         userId,
         username: ctx.from.username || ctx.from.first_name,
@@ -125,11 +117,21 @@ bot.on('text', async (ctx) => {
 
     } catch (error) {
       console.error(error);
-      await ctx.reply("❌ Failed to mark essay. Please try again with clearer photos.");
+      await ctx.reply("❌ Failed to mark essay.");
     }
 
     userTopics.delete(userId);
     userImages.delete(userId);
+    return;
+  }
+
+  // Handle feedback "yes" / "no"
+  if (lower === 'yes' || lower === 'no') {
+    if (lower === 'yes') {
+      await ctx.reply("⭐️ Rate the bot from 1 to 5:");
+    } else {
+      await ctx.reply("Thank you! Send a new topic to start again.");
+    }
     return;
   }
 
@@ -153,25 +155,22 @@ bot.on('photo', async (ctx) => {
   await ctx.reply(`📸 Page ${userImages.get(userId)!.length} received.\nSend more or type *done*.`);
 });
 
-// Commands
-bot.command('history', (ctx) => {
-  const myHistory = history.filter(h => h.userId === ctx.from.id);
-  if (myHistory.length === 0) return ctx.reply("You have no previous markings yet.");
+// Daily Limit Function
+function canMarkToday(userId: number): { allowed: boolean; remaining: number } {
+  const today = new Date().toISOString().split('T')[0];
+  const usage = dailyUsage.get(userId);
 
-  let msg = "📜 *Your Marking History:*\n\n";
-  myHistory.slice(-5).reverse().forEach((h, i) => {
-    msg += `${i+1}. ${new Date(h.date).toLocaleDateString()} — ${h.topic.substring(0, 60)}...\n`;
-  });
-  ctx.reply(msg, { parse_mode: 'Markdown' });
-});
+  if (!usage || usage.date !== today) {
+    dailyUsage.set(userId, { date: today, count: 0 });
+    return { allowed: true, remaining: 3 };
+  }
 
-bot.command('stats', (ctx) => {
-  if (ctx.from.id !== ADMIN_ID) return ctx.reply("❌ Admin only.");
-  ctx.reply(`📊 Total Essays Marked: ${history.length}\nUnique Users: ${new Set(history.map(h => h.userId)).size}`);
-});
+  const remaining = 3 - usage.count;
+  return { allowed: remaining > 0, remaining };
+}
 
 bot.launch()
-  .then(() => console.log('✅ Bot is running with 3 essays/day limit'))
+  .then(() => console.log('✅ Bot is running...'))
   .catch(console.error);
 
 console.log('Bot started.');
