@@ -21,7 +21,7 @@ if (fs.existsSync(historyFile)) {
 
 const ADMIN_ID = 1693748981;
 
-// Daily usage tracking
+// Daily usage
 const dailyUsage = new Map<number, { date: string; count: number }>();
 
 const userTopics = new Map<number, string>();
@@ -39,10 +39,17 @@ Use the official COEM rubric:
 Be strict and realistic.`;
 
 bot.start((ctx) => {
-  ctx.reply(`👋 *Welcome to EssayMaker Bot!*\n\nYou can mark up to **3 essays per day**.\n\nSend your essay topic first.`, { parse_mode: 'Markdown' });
+  ctx.reply(
+    `👋 *Welcome to EssayMaker Bot!*\n\n` +
+    `You can mark up to **3 essays per day**.\n\n` +
+    `1. Send your essay topic first\n` +
+    `2. Send clear photo(s)\n` +
+    `3. Type *done* when finished`,
+    { parse_mode: 'Markdown' }
+  );
 });
 
-// Check daily limit
+// Daily limit check
 function canMarkToday(userId: number): { allowed: boolean; remaining: number } {
   const today = new Date().toISOString().split('T')[0];
   const usage = dailyUsage.get(userId);
@@ -88,7 +95,7 @@ bot.on('text', async (ctx) => {
     if (images.length === 0) return ctx.reply("Please send at least one photo first.");
 
     const limit = canMarkToday(userId);
-    if (!limit.allowed) return ctx.reply(`⛔️ You have reached your daily limit of 3 essays.\n\nCome back tomorrow!`);
+    if (!limit.allowed) return ctx.reply(`⛔️ You have reached your daily limit of 3 essays.\nCome back tomorrow!`);
 
     await ctx.reply("⏳ Marking your essay...");
 
@@ -109,12 +116,7 @@ bot.on('text', async (ctx) => {
 
       await ctx.reply(result || "✅ Marking completed.", { parse_mode: 'Markdown' });
 
-      // Update daily usage
-      const today = new Date().toISOString().split('T')[0];
-      const usage = dailyUsage.get(userId) || { date: today, count: 0 };
-      usage.count += 1;
-      dailyUsage.set(userId, usage);
-
+      // Save
       history.push({
         userId,
         username: ctx.from.username || ctx.from.first_name,
@@ -125,6 +127,12 @@ bot.on('text', async (ctx) => {
       });
 
       fs.writeFileSync(historyFile, JSON.stringify(history, null, 2));
+
+      // Update daily usage
+      const today = new Date().toISOString().split('T')[0];
+      const usage = dailyUsage.get(userId) || { date: today, count: 0 };
+      usage.count += 1;
+      dailyUsage.set(userId, usage);
 
       await ctx.reply("📝 Would you like to give feedback? Reply *yes* or *no*.");
 
@@ -159,7 +167,7 @@ bot.on('photo', async (ctx) => {
 });
 
 bot.launch()
-  .then(() => console.log('✅ Bot is running with 3 essays/day limit'))
+  .then(() => console.log('✅ Bot is running...'))
   .catch(console.error);
 
 console.log('Bot started.');
