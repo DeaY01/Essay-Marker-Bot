@@ -21,14 +21,15 @@ if (fs.existsSync(historyFile)) {
 
 const ADMIN_ID = 1693748981;
 
+// Daily limit
 const dailyUsage = new Map<number, { date: string; count: number }>();
 
 const userTopics = new Map<number, string>();
 const userImages = new Map<number, string[]>();
 
-const SYSTEM_PROMPT = `You are a **very strict and consistent** WAEC/NECO examiner.
+const SYSTEM_PROMPT = `You are a **very strict** WAEC/NECO examiner.
 
-Use the official COEM rubric strictly:
+Use the official COEM rubric:
 - Content (10 marks)
 - Organisation (10 marks)
 - Expression (20 marks)
@@ -38,7 +39,14 @@ Use the official COEM rubric strictly:
 Be consistent. Similar quality essays should receive similar scores.`;
 
 bot.start((ctx) => {
-  ctx.reply(`👋 *Welcome to EssayMaker Bot!*\n\nYou can mark up to **3 essays per day**.\n\nSend your essay topic first.`, { parse_mode: 'Markdown' });
+  ctx.reply(
+    `👋 *Welcome to EssayMaker Bot!*\n\n` +
+    `You can mark up to **3 essays per day**.\n\n` +
+    `1. Send your essay topic first\n` +
+    `2. Send clear photo(s)\n` +
+    `3. Type *done* when finished`,
+    { parse_mode: 'Markdown' }
+  );
 });
 
 // Commands
@@ -58,14 +66,16 @@ bot.command('stats', (ctx) => {
   ctx.reply(`📊 Total Essays Marked: ${history.length}\nUnique Users: ${new Set(history.map(h => h.userId)).size}`);
 });
 
-// Text Handler
+// Main Text Handler
 bot.on('text', async (ctx) => {
   const userId = ctx.from.id;
   const text = ctx.message.text.trim();
   const lower = text.toLowerCase();
 
+  // Skip commands
   if (lower.startsWith('/')) return;
 
+  // Handle "done"
   if (lower === 'done') {
     const topic = userTopics.get(userId) || "No topic";
     const images = userImages.get(userId) || [];
@@ -123,7 +133,7 @@ bot.on('text', async (ctx) => {
     return;
   }
 
-  // Feedback handling
+  // Handle Feedback
   if (lower === 'yes' || lower === 'no') {
     if (lower === 'yes') {
       await ctx.reply("⭐️ Rate the bot from 1 to 5:");
