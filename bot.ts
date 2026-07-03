@@ -22,9 +22,9 @@ if (fs.existsSync(historyFile)) {
 const ADMIN_ID = 1693748981;
 
 const dailyUsage = new Map<number, { date: string; count: number }>();
-
 const userTopics = new Map<number, string>();
 const userImages = new Map<number, string[]>();
+const userFeedbackState = new Map<number, string>(); // 'rating'
 
 const SYSTEM_PROMPT = `You are a **very strict** WAEC/NECO examiner.
 
@@ -35,14 +35,14 @@ Use the official COEM rubric:
 - Mechanical Accuracy (10 marks)
 **Total: 50 marks**
 
-Be strict and consistent. Similar quality essays should receive similar scores. If the essay has little or no relevance to the given topic, give very low score (0-3/50).`;
+Be strict and consistent. Similar quality essays should receive similar scores. If the essay has little or no relevance to the given topic, give very low Content score (0-3/10).`;
 
 bot.start((ctx) => {
   ctx.reply(
     `👋 *Welcome to EssayMaker Bot!*\n\n` +
-    `1. Send your essay topic first\n` +
-    `2. Send clear photo(s)\n` +
-    `3. Type *done* when finished`,
+    `1. Send topic\n` +
+    `2. Send photos\n` +
+    `3. Type *done*`,
     { parse_mode: 'Markdown' }
   );
 });
@@ -72,6 +72,7 @@ bot.on('text', async (ctx) => {
 
   if (lower.startsWith('/')) return;
 
+  // Handle "done"
   if (lower === 'done') {
     const topic = userTopics.get(userId) || "No topic";
     const images = userImages.get(userId) || [];
@@ -128,12 +129,26 @@ bot.on('text', async (ctx) => {
     return;
   }
 
-  // Handle Feedback
+  // Feedback handling - Highest priority after "done"
+  if (userFeedbackState.get(userId) === 'rating') {
+    const rating = parseInt(text);
+    if (rating >= 1 && rating <= 5) {
+      await ctx.reply("Thank you for your feedback! 🙏");
+    } else {
+      await ctx.reply("Please reply with a number between 1 and 5.");
+      return;
+    }
+    userFeedbackState.delete(userId);
+    return;
+  }
+
   if (lower === 'yes' || lower === 'no') {
     if (lower === 'yes') {
       await ctx.reply("⭐️ Rate the bot from 1 to 5:");
+      userFeedbackState.set(userId, 'rating');
     } else {
       await ctx.reply("Thank you! Send a new topic to start again.");
+      userFeedbackState.delete(userId);
     }
     return;
   }
