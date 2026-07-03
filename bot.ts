@@ -21,28 +21,27 @@ if (fs.existsSync(historyFile)) {
 
 const ADMIN_ID = 1693748981;
 
-// Daily usage
 const dailyUsage = new Map<number, { date: string; count: number }>();
 
 const userTopics = new Map<number, string>();
 const userImages = new Map<number, string[]>();
 
-const SYSTEM_PROMPT = `You are a **very strict** WAEC/NECO examiner.
+const SYSTEM_PROMPT = `You are a **very strict and consistent** WAEC/NECO examiner.
 
-Use the official COEM rubric:
+Use the official COEM rubric strictly:
 - Content (10 marks)
 - Organisation (10 marks)
 - Expression (20 marks)
 - Mechanical Accuracy (10 marks)
 **Total: 50 marks**
 
-Be strict and realistic.`;
+Be consistent. Similar quality essays should receive similar scores.`;
 
 bot.start((ctx) => {
   ctx.reply(`👋 *Welcome to EssayMaker Bot!*\n\nYou can mark up to **3 essays per day**.\n\nSend your essay topic first.`, { parse_mode: 'Markdown' });
 });
 
-// ================== COMMANDS (High Priority) ==================
+// Commands
 bot.command('history', (ctx) => {
   const myHistory = history.filter(h => h.userId === ctx.from.id);
   if (myHistory.length === 0) return ctx.reply("You have no previous markings yet.");
@@ -59,7 +58,7 @@ bot.command('stats', (ctx) => {
   ctx.reply(`📊 Total Essays Marked: ${history.length}\nUnique Users: ${new Set(history.map(h => h.userId)).size}`);
 });
 
-// ================== TEXT HANDLER ==================
+// Text Handler
 bot.on('text', async (ctx) => {
   const userId = ctx.from.id;
   const text = ctx.message.text.trim();
@@ -67,7 +66,6 @@ bot.on('text', async (ctx) => {
 
   if (lower.startsWith('/')) return;
 
-  // Handle "done"
   if (lower === 'done') {
     const topic = userTopics.get(userId) || "No topic";
     const images = userImages.get(userId) || [];
@@ -102,7 +100,6 @@ bot.on('text', async (ctx) => {
       usage.count += 1;
       dailyUsage.set(userId, usage);
 
-      // Save history
       history.push({
         userId,
         username: ctx.from.username || ctx.from.first_name,
@@ -126,7 +123,7 @@ bot.on('text', async (ctx) => {
     return;
   }
 
-  // Handle Feedback
+  // Feedback handling
   if (lower === 'yes' || lower === 'no') {
     if (lower === 'yes') {
       await ctx.reply("⭐️ Rate the bot from 1 to 5:");
@@ -156,7 +153,6 @@ bot.on('photo', async (ctx) => {
   await ctx.reply(`📸 Page ${userImages.get(userId)!.length} received.\nSend more or type *done*.`);
 });
 
-// Daily Limit Function
 function canMarkToday(userId: number): { allowed: boolean; remaining: number } {
   const today = new Date().toISOString().split('T')[0];
   const usage = dailyUsage.get(userId);
