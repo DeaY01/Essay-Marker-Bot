@@ -39,7 +39,14 @@ Use the official COEM rubric:
 Be strict and realistic.`;
 
 bot.start((ctx) => {
-  ctx.reply(`👋 *Welcome to EssayMaker Bot!*\n\nYou can mark up to **3 essays per day**.\n\nSend your essay topic first.`, { parse_mode: 'Markdown' });
+  ctx.reply(
+    `👋 *Welcome to EssayMaker Bot!*\n\n` +
+    `You can mark up to **3 essays per day**.\n\n` +
+    `1. Send your essay topic first\n` +
+    `2. Send clear photo(s)\n` +
+    `3. Type *done* when finished`,
+    { parse_mode: 'Markdown' }
+  );
 });
 
 // Check daily limit
@@ -56,7 +63,7 @@ function canMarkToday(userId: number): { allowed: boolean; remaining: number } {
   return { allowed: remaining > 0, remaining };
 }
 
-// Topic Handler
+// Topic & General Text Handler
 bot.on('text', async (ctx) => {
   const userId = ctx.from.id;
   const text = ctx.message.text.trim();
@@ -64,15 +71,73 @@ bot.on('text', async (ctx) => {
 
   if (lower.startsWith('/')) return;
 
-  // Check daily limit before new topic
-  const limit = canMarkToday(userId);
-  if (!limit.allowed) {
-    return ctx.reply(`⛔️ You have reached your daily limit of 3 essays.\n\nCome back tomorrow!`);
+  if (lower === 'done') {
+    const topic = userTopics.get(userId) || "No topic";
+    const images = userImages.get(userId) || [];
+
+    if (images.length === 0) {
+      return ctx.reply("Please send at least one photo first.");
+    }
+
+    const limit = canMarkToday(userId);
+    if (!limit.allowed) {
+      return ctx.reply(`⛔️ You have reached your daily limit of 3 essays.\n\nCome back tomorrow!`);
+    }
+
+    await ctx.reply("⏳ Marking your essay... This may take 15-30 seconds.");
+
+    try {
+      const imageContents = images.map(url => ({ type: 'image' as const, image: url }));
+
+      const { text: result } = await generateText({
+        model,
+        system: SYSTEM_PROMPT,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'text', text: `Topic: ${topic}\n\nMark this essay very strictly.` },
+            ...imageContents
+          ] as any
+        }]
+      });
+
+      await ctx.reply(result || "✅ Marking completed.", { parse_mode: 'Markdown' });
+
+      // Update daily usage
+      const today = new Date().toISOString().split('T')[0];
+      const usage = dailyUsage.get(userId) || { date: today, count: 0 };
+      usage.count += 1;
+      dailyUsage.set(userId, usage);
+
+      // Save history
+      history.push({
+        userId,
+        username: ctx.from.username || ctx.from.first_name,
+        topic,
+        result,
+        pages: images.length,
+        date: new Date().toISOString()
+      });
+
+      fs.writeFileSync(historyFile, JSON.stringify(history, null, 2));
+
+      await ctx.reply("📝 Would you like to give feedback? Reply *yes* or *no*.");
+
+    } catch (error) {
+      console.error(error);
+      await ctx.reply("❌ Failed to mark essay. Please try again with clearer photos.");
+    }
+
+    userTopics.delete(userId);
+    userImages.delete(userId);
+    return;
   }
 
+  // New Topic
   userTopics.set(userId, text);
   userImages.set(userId, []);
-  await ctx.reply(`✅ Topic saved: "${text}"\n\nNow send photo(s) of your essay.\nType *done* when finished.`);
+  const limit = canMarkToday(userId);
+  await ctx.reply(`✅ Topic saved: "${text}"\n\nRemaining essays today: *${limit.remaining}*\n\nSend your essay photo(s). Type *done* when finished.`, { parse_mode: 'Markdown' });
 });
 
 // Photo Handler
@@ -86,62 +151,6 @@ bot.on('photo', async (ctx) => {
 
   userImages.get(userId)!.push(imageUrl);
   await ctx.reply(`📸 Page ${userImages.get(userId)!.length} received.\nSend more or type *done*.`);
-});
-
-// Done Handler
-bot.hears('done', async (ctx) => {
-  const userId = ctx.from.id;
-  const topic = userTopics.get(userId) || "No topic";
-  const images = userImages.get(userId) || [];
-
-  if (images.length === 0) return ctx.reply("Please send at least one photo first.");
-
-  await ctx.reply("⏳ Marking your essay... This may take 15-30 seconds.");
-
-  try {
-    const imageContents = images.map(url => ({ type: 'image' as const, image: url }));
-
-    const { text: result } = await generateText({
-      model,
-      system: SYSTEM_PROMPT,
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'text', text: `Topic: ${topic}\n\nMark this essay very strictly.` },
-          ...imageContents
-        ] as any
-      }]
-    });
-
-    await ctx.reply(result || "✅ Marking completed.", { parse_mode: 'Markdown' });
-
-    // Update daily usage
-    const today = new Date().toISOString().split('T')[0];
-    const usage = dailyUsage.get(userId) || { date: today, count: 0 };
-    usage.count += 1;
-    dailyUsage.set(userId, usage);
-
-    // Save to history
-    history.push({
-      userId,
-      username: ctx.from.username || ctx.from.first_name,
-      topic,
-      result,
-      pages: images.length,
-      date: new Date().toISOString()
-    });
-
-    fs.writeFileSync(historyFile, JSON.stringify(history, null, 2));
-
-    await ctx.reply("📝 Would you like to give feedback? Reply *yes* or *no*.");
-
-  } catch (error) {
-    console.error(error);
-    await ctx.reply("❌ Failed to mark essay. Please try again with clearer photos.");
-  }
-
-  userTopics.delete(userId);
-  userImages.delete(userId);
 });
 
 // Commands
