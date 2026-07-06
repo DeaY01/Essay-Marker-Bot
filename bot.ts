@@ -27,14 +27,12 @@ const userImages = new Map<number, string[]>();
 const userFeedbackState = new Map<number, string>(); // 'rating'
 
 const SYSTEM_PROMPT = `You are a **very strict** WAEC/NECO examiner.
-
 Use the official COEM rubric:
 - Content (10 marks)
 - Organisation (10 marks)
 - Expression (20 marks)
 - Mechanical Accuracy (10 marks)
 **Total: 50 marks**
-
 Be strict and consistent. Similar quality essays should receive similar scores. If the essay has little or no relevance to the given topic, give very low Content score (0-3/10).`;
 
 bot.start((ctx) => {
@@ -51,7 +49,6 @@ bot.start((ctx) => {
 bot.command('history', (ctx) => {
   const myHistory = history.filter(h => h.userId === ctx.from.id);
   if (myHistory.length === 0) return ctx.reply("You have no previous markings yet.");
-
   let msg = "📜 *Your Marking History:*\n\n";
   myHistory.slice(-10).reverse().forEach((h, i) => {
     msg += `${i+1}. ${new Date(h.date).toLocaleDateString()} — ${h.topic.substring(0, 60)}...\n`;
@@ -61,7 +58,25 @@ bot.command('history', (ctx) => {
 
 bot.command('stats', (ctx) => {
   if (ctx.from.id !== ADMIN_ID) return ctx.reply("❌ Admin only.");
-  ctx.reply(`📊 Total Essays Marked: ${history.length}\nUnique Users: ${new Set(history.map(h => h.userId)).size}`);
+
+  const totalEssays = history.length;
+  const uniqueUsers = new Set(history.map(h => h.userId)).size;
+
+  // Feedback statistics
+  const feedbacks = history.filter(h => h.rating);
+  const totalFeedbacks = feedbacks.length;
+  let avgRating = 0;
+  if (totalFeedbacks > 0) {
+    avgRating = feedbacks.reduce((sum, h) => sum + h.rating, 0) / totalFeedbacks;
+  }
+
+  let statsMsg = `📊 *Admin Statistics*\n\n`;
+  statsMsg += `Total Essays Marked: ${totalEssays}\n`;
+  statsMsg += `Unique Users: ${uniqueUsers}\n`;
+  statsMsg += `Total Feedbacks: ${totalFeedbacks}\n`;
+  if (totalFeedbacks > 0) statsMsg += `Average Rating: ${avgRating.toFixed(1)} / 5\n\n`;
+
+  ctx.reply(statsMsg, { parse_mode: 'Markdown' });
 });
 
 // Text Handler
@@ -129,10 +144,16 @@ bot.on('text', async (ctx) => {
     return;
   }
 
-  // Feedback handling - Highest priority after "done"
+  // Feedback handling
   if (userFeedbackState.get(userId) === 'rating') {
     const rating = parseInt(text);
     if (rating >= 1 && rating <= 5) {
+      // Save rating to the last essay
+      const userHistory = history.filter(h => h.userId === userId);
+      if (userHistory.length > 0) {
+        userHistory[userHistory.length - 1].rating = rating;
+        fs.writeFileSync(historyFile, JSON.stringify(history, null, 2));
+      }
       await ctx.reply("Thank you for your feedback! 🙏");
     } else {
       await ctx.reply("Please reply with a number between 1 and 5.");
