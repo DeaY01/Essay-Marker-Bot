@@ -33,7 +33,11 @@ Use the official COEM rubric:
 - Expression (20 marks)
 - Mechanical Accuracy (10 marks)
 **Total: 50 marks**
-Be strict and consistent. Similar quality essays should receive similar scores. If the essay has little or no relevance to the given topic, give very low Content score (0-3/10).`;
+
+Rules:
+- Be realistic and strict. Excellent essays rarely exceed 42/50.
+- Ideal length is 400-450 words. Penalize scores heavily if much shorter.
+- Consider how well the essay answers the given topic.`;
 
 bot.start((ctx) => {
   ctx.reply(
