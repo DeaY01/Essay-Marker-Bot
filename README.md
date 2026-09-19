@@ -14,7 +14,7 @@ A Telegram bot that marks Nigerian secondary school essays using **Grok-4.3** ac
 ## How to Use
 
 1. Send your essay **topic/question**
-2. Send clear photo(s) of your handwritten
+2. Send clear photo(s) of your handwritten essay
 3. Type `done` when finished
 4. Get detailed marking + score out of 50
 
