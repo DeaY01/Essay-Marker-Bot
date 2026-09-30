@@ -204,10 +204,10 @@ function canMarkToday(userId: number): { allowed: boolean; remaining: number } {
 
   if (!usage || usage.date !== today) {
     dailyUsage.set(userId, { date: today, count: 0 });
-    return { allowed: true, remaining: 3 };
+    return { allowed: true, remaining: 10 };
   }
 
-  const remaining = 3 - usage.count;
+  const remaining = 10 - usage.count;
   return { allowed: remaining > 0, remaining };
 }
 
