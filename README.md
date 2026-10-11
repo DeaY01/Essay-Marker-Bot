@@ -1,4 +1,4 @@
-# EssayMaker Bot
+# EssayMaker AI
 
 A Telegram bot that marks Nigerian secondary school essays using **Grok-4.3** according to the official **WAEC/NECO COEM** rubric.
 
